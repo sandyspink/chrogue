@@ -11,6 +11,8 @@ body {
     line-height: 1.4;
     padding: 10px 0;
     min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
 }
 
 .game-container {
@@ -104,7 +106,9 @@ body {
     border: 2px solid #c4b5a9;
     margin-bottom: 15px;
     height: 480px;
+    max-width: 484px;
     overflow-y: auto;
+    overflow-x: hidden;
     scroll-behavior: smooth;
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
@@ -348,12 +352,18 @@ body {
 /* Responsive adjustments */
 @media (max-width: 600px) {
     .game-info h1 {
-        font-size: 2.5rem;
+        font-size: 2rem;
         letter-spacing: 2px;
     }
     
     .captured-pieces {
-        gap: 30px;
+        gap: 20px;
+        flex-direction: column;
+    }
+    
+    .captured, .kings-killed {
+        min-width: auto;
+        width: 100%;
     }
     
     .new-game-container {
@@ -361,19 +371,27 @@ body {
         gap: 10px;
     }
     
+    #new-game, #show-log {
+        width: 100%;
+        max-width: 200px;
+        margin: 0 auto;
+    }
+    
     .board {
-        grid-template-columns: repeat(8, 50px);
-        grid-template-rows: repeat(80, 50px);
+        grid-template-columns: repeat(8, min(45px, calc((100vw - 40px) / 8)));
+        grid-template-rows: repeat(80, min(45px, calc((100vw - 40px) / 8)));
         height: 400px;
+        max-width: calc(100vw - 40px);
+        width: 100%;
     }
     
     .square {
-        width: 50px;
-        height: 50px;
+        width: min(45px, calc((100vw - 40px) / 8));
+        height: min(45px, calc((100vw - 40px) / 8));
     }
     
     .piece {
-        font-size: 36px;
+        font-size: min(32px, calc((100vw - 40px) / 12));
     }
     
     .log-modal {
