@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrogue</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-info">
+            <h1>CHROGUE</h1>
+            <div class="status" id="status">White's turn</div>
+        </div>
+        <div class="board" id="board"></div>
+        <div class="captured-pieces">
+            <div class="captured white-captured">
+                <h3>Black pieces captured:</h3>
+                <div id="white-captured"></div>
+            </div>
+            <div class="captured black-captured">
+                <h3>White pieces captured:</h3>
+                <div id="black-captured"></div>
+            </div>
+            <div class="kings-killed">
+                <h3>Kings Killed: <span id="kings-killed">0</span></h3>
+            </div>
+        </div>
+        <div class="new-game-container">
+            <button id="new-game">New Game</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
