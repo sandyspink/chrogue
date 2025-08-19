@@ -10,9 +10,11 @@
     <div class="game-container">
         <div class="game-info">
             <h1>CHROGUE</h1>
-            <div class="status" id="status">White's turn</div>
         </div>
         <div class="board" id="board"></div>
+        <div class="status-container">
+            <div class="status" id="status">White's turn</div>
+        </div>
         <div class="captured-pieces">
             <div class="captured white-captured">
                 <h3>Black pieces captured:</h3>
@@ -28,6 +30,20 @@
         </div>
         <div class="new-game-container">
             <button id="new-game">New Game</button>
+            <button id="show-log">Show Log</button>
+        </div>
+        
+        <!-- Move Log Modal -->
+        <div id="log-modal-overlay" class="modal-overlay" style="display: none;">
+            <div class="log-modal">
+                <div class="log-header">
+                    <h3>Move Log</h3>
+                    <button id="close-log" class="close-button">&times;</button>
+                </div>
+                <div class="log-content" id="log-content">
+                    <p class="no-moves">No moves yet - start playing!</p>
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>

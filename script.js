@@ -10,6 +10,8 @@ class ChessGame {
         this.isCheck = false;
         this.isCheckmate = false;
         this.isStalemate = false;
+        this.moveLog = [];
+        this.activeArmies = new Set();
         
         this.pieces = {
             white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
@@ -23,6 +25,7 @@ class ChessGame {
         this.setupBoard();
         this.renderBoard();
         this.attachEventListeners();
+        this.attachModalListeners();
         
         // Initial scroll to show white pieces at bottom
         setTimeout(() => {
@@ -126,6 +129,22 @@ class ChessGame {
         
         document.getElementById('new-game').addEventListener('click', () => {
             this.resetGame();
+        });
+    }
+    
+    attachModalListeners() {
+        document.getElementById('show-log').addEventListener('click', () => {
+            this.showMoveLog();
+        });
+        
+        document.getElementById('close-log').addEventListener('click', () => {
+            this.hideMoveLog();
+        });
+        
+        document.getElementById('log-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'log-modal-overlay') {
+                this.hideMoveLog();
+            }
         });
     }
     
@@ -370,6 +389,9 @@ class ChessGame {
         const piece = this.board[from.row][from.col];
         const capturedPiece = this.board[to.row][to.col];
         
+        // Log the move
+        this.logMove(piece, from, to, capturedPiece);
+        
         // Handle captures
         if (capturedPiece) {
             this.capturedPieces[capturedPiece.color].push(capturedPiece);
@@ -433,25 +455,64 @@ class ChessGame {
     
     makeComputerMove() {
         const allMoves = [];
+        const armyRows = [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
         
-        // Collect all possible moves
-        for (let row = 0; row < 80; row++) {
+        // Find the lowest white piece position
+        let lowestWhitePieceRow = -1;
+        for (let row = 79; row >= 0; row--) {
             for (let col = 0; col < 8; col++) {
                 const piece = this.board[row][col];
-                if (piece && piece.color === 'black') {
-                    const moves = this.getValidMoves(row, col);
-                    moves.forEach(move => {
-                        allMoves.push({
-                            from: { row, col },
-                            to: move,
-                            score: this.evaluateMove(row, col, move)
-                        });
-                    });
+                if (piece && piece.color === 'white') {
+                    lowestWhitePieceRow = Math.max(lowestWhitePieceRow, row);
                 }
             }
         }
         
-        if (allMoves.length === 0) return;
+        // Collect all possible moves from active armies only
+        for (let row = 0; row < 80; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece && piece.color === 'black') {
+                    // Check if this piece's army should be active
+                    let armyIndex = -1;
+                    for (let i = 0; i < armyRows.length; i++) {
+                        if (row === armyRows[i] || row === armyRows[i] + 1) {
+                            armyIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    // Army is active if white pieces are within 4 rows of this army
+                    const armyStartRow = armyIndex >= 0 ? armyRows[armyIndex] : row;
+                    const isArmyActive = (lowestWhitePieceRow + 4) >= armyStartRow;
+                    
+                    if (isArmyActive) {
+                        // Check if this army just became active
+                        if (armyIndex >= 0 && !this.activeArmies.has(armyIndex)) {
+                            this.activeArmies.add(armyIndex);
+                            this.addLogEntry(`Army ${armyIndex + 1} awakens!`, true);
+                        }
+                        
+                        const moves = this.getValidMoves(row, col);
+                        moves.forEach(move => {
+                            allMoves.push({
+                                from: { row, col },
+                                to: move,
+                                score: this.evaluateMove(row, col, move)
+                            });
+                        });
+                    }
+                }
+            }
+        }
+        
+        if (allMoves.length === 0) {
+            // No active armies can move, black passes turn
+            this.currentTurn = 'white';
+            this.showPassMessage();
+            this.renderBoard();
+            return;
+        }
         
         // Sort moves by score and pick from top moves
         allMoves.sort((a, b) => b.score - a.score);
@@ -854,6 +915,95 @@ class ChessGame {
         document.getElementById('kings-killed').textContent = this.kingsKilled;
     }
     
+    showPassMessage() {
+        const status = document.getElementById('status');
+        const originalText = status.textContent;
+        status.textContent = 'Black armies dormant... White\'s turn';
+        status.style.color = '#a67c5a';
+        
+        // Revert after a short delay
+        setTimeout(() => {
+            this.updateStatus();
+        }, 1500);
+    }
+    
+    logMove(piece, from, to, capturedPiece) {
+        const fromSquare = this.getSquareName(from.row, from.col);
+        const toSquare = this.getSquareName(to.row, to.col);
+        const pieceName = this.getPieceName(piece);
+        const armyInfo = piece.color === 'black' ? this.getArmyInfo(from.row) : '';
+        
+        let moveText = `${piece.color === 'white' ? 'White' : armyInfo} ${pieceName} ${fromSquare}→${toSquare}`;
+        
+        if (capturedPiece) {
+            const capturedName = this.getPieceName(capturedPiece);
+            const capturedArmyInfo = capturedPiece.color === 'black' ? this.getArmyInfo(to.row) : '';
+            moveText += ` captures ${capturedPiece.color === 'white' ? 'White' : capturedArmyInfo} ${capturedName}`;
+            
+            // Check if this was a king capture (army elimination)
+            if (capturedPiece.type === 'king' && capturedPiece.color === 'black') {
+                const armyNumber = this.getArmyNumber(to.row);
+                if (armyNumber > 0) {
+                    this.addLogEntry(`Army ${armyNumber} eliminated!`, true);
+                }
+            }
+        }
+        
+        this.addLogEntry(moveText);
+    }
+    
+    getSquareName(row, col) {
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+        return files[col] + (row + 1);
+    }
+    
+    getPieceName(piece) {
+        return piece.type.charAt(0).toUpperCase() + piece.type.slice(1);
+    }
+    
+    getArmyInfo(row) {
+        const armyNumber = this.getArmyNumber(row);
+        return armyNumber > 0 ? `Army ${armyNumber}` : 'Black';
+    }
+    
+    getArmyNumber(row) {
+        const armyRows = [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
+        for (let i = 0; i < armyRows.length; i++) {
+            if (row === armyRows[i] || row === armyRows[i] + 1) {
+                return i + 1;
+            }
+        }
+        return 0;
+    }
+    
+    addLogEntry(text, isEvent = false) {
+        this.moveLog.unshift({ text, isEvent, timestamp: Date.now() });
+        this.updateLogDisplay();
+    }
+    
+    updateLogDisplay() {
+        const logContent = document.getElementById('log-content');
+        if (this.moveLog.length === 0) {
+            logContent.innerHTML = '<p class="no-moves">No moves yet - start playing!</p>';
+            return;
+        }
+        
+        logContent.innerHTML = this.moveLog.map(entry => 
+            `<div class="move-entry ${entry.isEvent ? 'event' : ''}">${entry.text}</div>`
+        ).join('');
+    }
+    
+    showMoveLog() {
+        document.getElementById('log-modal-overlay').style.display = 'block';
+        // Scroll to top to show most recent moves
+        const logContent = document.getElementById('log-content');
+        logContent.scrollTop = 0;
+    }
+    
+    hideMoveLog() {
+        document.getElementById('log-modal-overlay').style.display = 'none';
+    }
+    
     resetGame() {
         this.currentTurn = 'white';
         this.selectedSquare = null;
@@ -864,9 +1014,12 @@ class ChessGame {
         this.isCheck = false;
         this.isCheckmate = false;
         this.isStalemate = false;
+        this.moveLog = [];
+        this.activeArmies = new Set();
         
         this.setupBoard();
         this.renderBoard();
+        this.updateLogDisplay();
     }
 }
 

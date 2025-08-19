@@ -38,6 +38,11 @@ body {
     text-transform: uppercase;
 }
 
+.status-container {
+    text-align: center;
+    margin: 15px 0 10px 0;
+}
+
 .status {
     font-size: 1rem;
     color: #7c7c7c;
@@ -68,6 +73,28 @@ body {
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid #e1ddd9;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+#show-log {
+    background: #d4c5b9;
+    color: #5a5a5a;
+    border: 1px solid #c4b5a9;
+    padding: 12px 24px;
+    border-radius: 2px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+#show-log:hover {
+    background: #c4b5a9;
+    transform: translateY(-1px);
 }
 
 .board {
@@ -222,21 +249,99 @@ body {
     75% { transform: translateX(3px); }
 }
 
-/* Scrollbar styling */
-.board::-webkit-scrollbar {
-    width: 8px;
+/* Move Log Modal */
+.log-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #faf9f7;
+    border: 2px solid #c4b5a9;
+    border-radius: 8px;
+    width: 400px;
+    max-width: 90vw;
+    max-height: 70vh;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    z-index: 1000;
 }
 
-.board::-webkit-scrollbar-track {
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e1ddd9;
     background: #f5f0eb;
 }
 
-.board::-webkit-scrollbar-thumb {
+.log-header h3 {
+    font-size: 1.1rem;
+    color: #5a5a5a;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #7c7c7c;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease;
+}
+
+.close-button:hover {
+    color: #5a5a5a;
+}
+
+.log-content {
+    padding: 20px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.move-entry {
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: #5a5a5a;
+    line-height: 1.4;
+}
+
+.move-entry.event {
+    font-weight: bold;
+    color: #a67c5a;
+    margin: 12px 0;
+}
+
+.no-moves {
+    text-align: center;
+    color: #7c7c7c;
+    font-style: italic;
+    margin: 20px 0;
+}
+
+/* Scrollbar styling */
+.board::-webkit-scrollbar, .log-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.board::-webkit-scrollbar-track, .log-content::-webkit-scrollbar-track {
+    background: #f5f0eb;
+}
+
+.board::-webkit-scrollbar-thumb, .log-content::-webkit-scrollbar-thumb {
     background: #d4c5b9;
     border-radius: 4px;
 }
 
-.board::-webkit-scrollbar-thumb:hover {
+.board::-webkit-scrollbar-thumb:hover, .log-content::-webkit-scrollbar-thumb:hover {
     background: #c4b5a9;
 }
 
@@ -251,9 +356,15 @@ body {
         gap: 30px;
     }
     
+    .new-game-container {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
     .board {
         grid-template-columns: repeat(8, 50px);
         grid-template-rows: repeat(80, 50px);
+        height: 400px;
     }
     
     .square {
@@ -263,5 +374,19 @@ body {
     
     .piece {
         font-size: 36px;
+    }
+    
+    .log-modal {
+        width: 95vw;
+        max-height: 80vh;
+    }
+    
+    .log-content {
+        max-height: 60vh;
+        padding: 15px;
+    }
+    
+    .move-entry {
+        font-size: 0.85rem;
     }
 }
