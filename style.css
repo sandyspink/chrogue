@@ -99,6 +99,25 @@ body {
     transform: translateY(-1px);
 }
 
+.debug-button {
+    background: #ff6b6b;
+    color: white;
+    border: 1px solid #e74c3c;
+    padding: 12px 24px;
+    border-radius: 2px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.debug-button:hover {
+    background: #e74c3c;
+    transform: translateY(-1px);
+}
+
 .board {
     display: grid;
     grid-template-columns: repeat(8, 60px);

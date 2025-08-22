@@ -189,6 +189,10 @@ class ChessGame {
             this.resetGame();
         });
         
+        document.getElementById('debug-win').addEventListener('click', () => {
+            this.debugWinBoard();
+        });
+        
         // Debug controls
         document.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'v') {
@@ -492,6 +496,12 @@ class ChessGame {
             // Check if black king was captured
             if (capturedPiece.type === 'king' && capturedPiece.color === 'black') {
                 this.boardsCleared++;
+                
+                // Update game state first
+                this.lastMove = { from, to };
+                this.selectedSquare = null;
+                this.validMoves = [];
+                
                 this.advanceToNextBoard();
                 return;
             }
@@ -1272,6 +1282,19 @@ class ChessGame {
             this.renderBoard();
             this.endGame();
         }
+    }
+    
+    debugWinBoard() {
+        if (this.isGameOver) return;
+        
+        this.addLogEntry(`DEBUG: Board ${this.boardsCleared + 1} manually completed`, true);
+        this.boardsCleared++;
+        
+        // Update game state
+        this.selectedSquare = null;
+        this.validMoves = [];
+        
+        this.advanceToNextBoard();
     }
     
     showPassMessage() {
