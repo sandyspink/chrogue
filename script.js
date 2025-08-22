@@ -1287,6 +1287,7 @@ class ChessGame {
     debugWinBoard() {
         if (this.isGameOver) return;
         
+        console.log('DEBUG: Debug win button clicked');
         this.addLogEntry(`DEBUG: Board ${this.boardsCleared + 1} manually completed`, true);
         this.boardsCleared++;
         
@@ -1294,6 +1295,7 @@ class ChessGame {
         this.selectedSquare = null;
         this.validMoves = [];
         
+        console.log('DEBUG: About to call advanceToNextBoard');
         this.advanceToNextBoard();
     }
     
@@ -1382,9 +1384,14 @@ class ChessGame {
     }
     
     showPieceSelection() {
+        console.log('DEBUG: showPieceSelection called');
         const pieces = this.generateRandomPieces();
+        console.log('DEBUG: Generated pieces:', pieces);
         this.populatePieceSelectionModal(pieces);
-        document.getElementById('piece-selection-modal-overlay').style.display = 'block';
+        const modal = document.getElementById('piece-selection-modal-overlay');
+        console.log('DEBUG: Modal element:', modal);
+        modal.style.display = 'block';
+        console.log('DEBUG: Modal display set to block');
     }
     
     hidePieceSelection() {

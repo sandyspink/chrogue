@@ -611,4 +611,29 @@ body {
     .move-entry {
         font-size: 0.85rem;
     }
+    
+    .piece-selection-modal {
+        min-width: 90vw;
+        max-width: 95vw;
+        padding: 15px;
+    }
+    
+    .piece-selection-choices {
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .piece-selection-choice {
+        width: 60px;
+        height: 60px;
+        font-size: 40px;
+    }
+    
+    .debug-button {
+        width: 100%;
+        max-width: 200px;
+        margin: 0 auto;
+        font-size: 0.8rem;
+        padding: 10px 20px;
+    }
 }
