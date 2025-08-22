@@ -24,8 +24,8 @@
                 <h3>White pieces captured:</h3>
                 <div id="black-captured"></div>
             </div>
-            <div class="kings-killed">
-                <h3>Kings Killed: <span id="kings-killed">0</span></h3>
+            <div class="boards-cleared">
+                <h3>Boards Cleared: <span id="boards-cleared">0</span></h3>
             </div>
         </div>
         <div class="new-game-container">
@@ -42,6 +42,34 @@
                 </div>
                 <div class="log-content" id="log-content">
                     <p class="no-moves">No moves yet - start playing!</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pawn Promotion Modal -->
+        <div id="promotion-modal-overlay" class="modal-overlay" style="display: none;">
+            <div class="promotion-modal">
+                <div class="promotion-header">
+                    <h3>Choose Promotion</h3>
+                </div>
+                <div class="promotion-choices">
+                    <button class="promotion-choice" data-piece="queen">♕</button>
+                    <button class="promotion-choice" data-piece="rook">♖</button>
+                    <button class="promotion-choice" data-piece="bishop">♗</button>
+                    <button class="promotion-choice" data-piece="knight">♘</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Piece Selection Modal -->
+        <div id="piece-selection-modal-overlay" class="modal-overlay" style="display: none;">
+            <div class="piece-selection-modal">
+                <div class="piece-selection-header">
+                    <h3>Choose a Reinforcement</h3>
+                    <p>Select one piece to add to your army</p>
+                </div>
+                <div class="piece-selection-choices" id="piece-selection-choices">
+                    <!-- Dynamically populated with 3 random pieces -->
                 </div>
             </div>
         </div>

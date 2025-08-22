@@ -6,12 +6,15 @@ class ChessGame {
         this.validMoves = [];
         this.lastMove = null;
         this.capturedPieces = { white: [], black: [] };
-        this.kingsKilled = 0;
+        this.boardsCleared = 0;
         this.isCheck = false;
         this.isCheckmate = false;
         this.isStalemate = false;
         this.moveLog = [];
-        this.activeArmies = new Set();
+        this.whiteArmy = null;
+        this.isGameOver = false;
+        this.pendingPromotion = null;
+        this.pendingPieceSelection = null;
         
         this.pieces = {
             white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
@@ -27,42 +30,97 @@ class ChessGame {
         this.attachEventListeners();
         this.attachModalListeners();
         
-        // Initial scroll to show white pieces at bottom
-        setTimeout(() => {
-            const boardElement = document.getElementById('board');
-            boardElement.scrollTop = boardElement.scrollHeight - boardElement.clientHeight;
-        }, 100);
+        // No scrolling needed for single board
     }
     
     setupBoard() {
-        // Initialize 8x80 board
-        this.board = Array(80).fill(null).map(() => Array(8).fill(null));
+        // Initialize standard 8x8 board
+        this.board = Array(8).fill(null).map(() => Array(8).fill(null));
         
-        // Place pieces in starting positions
         const backRow = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
         
-        // White pieces (bottom of board - rows 0-1)
-        for (let col = 0; col < 8; col++) {
-            this.board[0][col] = { type: backRow[col], color: 'white', hasMoved: false };
-            this.board[1][col] = { type: 'pawn', color: 'white', hasMoved: false };
+        // If this is the first board, set up white pieces
+        if (!this.whiteArmy) {
+            this.whiteArmy = [];
+            for (let col = 0; col < 8; col++) {
+                this.board[0][col] = { type: backRow[col], color: 'white', hasMoved: false, id: `white-${backRow[col]}-${col}` };
+                this.board[1][col] = { type: 'pawn', color: 'white', hasMoved: false, id: `white-pawn-${col}` };
+                this.whiteArmy.push(this.board[0][col]);
+                this.whiteArmy.push(this.board[1][col]);
+            }
+        } else {
+            // Place surviving white pieces
+            this.placeWhiteArmy();
         }
         
-        // Place black armies with 4-row gaps starting from row 6-7
-        const armyRows = [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
-        
-        armyRows.forEach((startRow, index) => {
+        // Black pieces always get a fresh army
+        for (let col = 0; col < 8; col++) {
+            this.board[6][col] = { type: 'pawn', color: 'black', hasMoved: false };
+            this.board[7][col] = { type: backRow[col], color: 'black', hasMoved: false };
+        }
+    }
+    
+    placeWhiteArmy() {
+        // Clear white positions first
+        for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
-                this.board[startRow][col] = { type: 'pawn', color: 'black', hasMoved: false };
-                this.board[startRow + 1][col] = { type: backRow[col], color: 'black', hasMoved: false };
+                if (this.board[row][col] && this.board[row][col].color === 'white') {
+                    this.board[row][col] = null;
+                }
+            }
+        }
+        
+        // Place surviving white pieces
+        const placedPositions = new Set();
+        
+        this.whiteArmy.forEach(piece => {
+            let row, col;
+            
+            // Check if this is an original piece or a reward piece
+            if (piece.id.startsWith('reward-')) {
+                // Find empty position for reward pieces
+                const emptyPosition = this.findEmptyPosition(placedPositions);
+                if (emptyPosition) {
+                    row = emptyPosition.row;
+                    col = emptyPosition.col;
+                }
+            } else {
+                // Original pieces go to their starting positions
+                if (piece.type === 'pawn') {
+                    row = 1;
+                    col = parseInt(piece.id.split('-')[2]);
+                } else {
+                    row = 0;
+                    col = parseInt(piece.id.split('-')[2]);
+                }
+            }
+            
+            // Only place if position is valid and not occupied
+            if (row >= 0 && row < 8 && col >= 0 && col < 8 && !placedPositions.has(`${row}-${col}`)) {
+                this.board[row][col] = piece;
+                placedPositions.add(`${row}-${col}`);
             }
         });
+    }
+    
+    findEmptyPosition(placedPositions) {
+        // Try to place on back rows first (0-1), then move forward
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const posKey = `${row}-${col}`;
+                if (!placedPositions.has(posKey) && !this.board[row][col]) {
+                    return { row, col };
+                }
+            }
+        }
+        return null; // No empty position found
     }
     
     renderBoard() {
         const boardElement = document.getElementById('board');
         boardElement.innerHTML = '';
         
-        for (let row = 79; row >= 0; row--) {
+        for (let row = 7; row >= 0; row--) {
             for (let col = 0; col < 8; col++) {
                 const square = document.createElement('div');
                 square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
@@ -114,7 +172,7 @@ class ChessGame {
         
         this.updateStatus();
         this.updateCapturedPieces();
-        this.updateKingsKilled();
+        this.updateBoardsCleared();
     }
     
     attachEventListeners() {
@@ -129,6 +187,15 @@ class ChessGame {
         
         document.getElementById('new-game').addEventListener('click', () => {
             this.resetGame();
+        });
+        
+        // Debug controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'v') {
+                this.debugCaptureBlackKing();
+            } else if (e.key.toLowerCase() === 'l') {
+                this.debugKillAllWhitePieces();
+            }
         });
     }
     
@@ -146,10 +213,31 @@ class ChessGame {
                 this.hideMoveLog();
             }
         });
+        
+        // Pawn promotion event listeners
+        document.querySelectorAll('.promotion-choice').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const pieceType = e.target.dataset.piece;
+                this.completePawnPromotion(pieceType);
+            });
+        });
+        
+        document.getElementById('promotion-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'promotion-modal-overlay') {
+                // Don't allow closing promotion modal by clicking overlay - must choose
+            }
+        });
+        
+        // Piece selection modal (will be dynamically populated)
+        document.getElementById('piece-selection-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'piece-selection-modal-overlay') {
+                // Don't allow closing piece selection modal by clicking overlay - must choose
+            }
+        });
     }
     
     handleSquareClick(row, col) {
-        if (this.isCheckmate || this.isStalemate) return;
+        if (this.isCheckmate || this.isStalemate || this.isGameOver) return;
         
         const piece = this.board[row][col];
         
@@ -264,7 +352,7 @@ class ChessGame {
         const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
         
         for (const [dRow, dCol] of directions) {
-            for (let i = 1; i < 80; i++) {
+            for (let i = 1; i < 8; i++) {
                 const newRow = row + dRow * i;
                 const newCol = col + dCol * i;
                 
@@ -312,7 +400,7 @@ class ChessGame {
         const directions = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
         
         for (const [dRow, dCol] of directions) {
-            for (let i = 1; i < 80; i++) {
+            for (let i = 1; i < 8; i++) {
                 const newRow = row + dRow * i;
                 const newCol = col + dCol * i;
                 
@@ -395,9 +483,17 @@ class ChessGame {
         // Handle captures
         if (capturedPiece) {
             this.capturedPieces[capturedPiece.color].push(capturedPiece);
-            // Count kings killed
+            
+            // If white piece captured, remove from army
+            if (capturedPiece.color === 'white') {
+                this.whiteArmy = this.whiteArmy.filter(p => p.id !== capturedPiece.id);
+            }
+            
+            // Check if black king was captured
             if (capturedPiece.type === 'king' && capturedPiece.color === 'black') {
-                this.kingsKilled++;
+                this.boardsCleared++;
+                this.advanceToNextBoard();
+                return;
             }
         }
         
@@ -427,90 +523,65 @@ class ChessGame {
         this.board[from.row][from.col] = null;
         piece.hasMoved = true;
         
-        // Pawn promotion disabled for now
+        // Check for pawn promotion
+        if (piece.type === 'pawn') {
+            const promotionRow = piece.color === 'white' ? 7 : 0;
+            if (to.row === promotionRow) {
+                if (piece.color === 'white') {
+                    // Human player promotion - show modal
+                    this.pendingPromotion = { row: to.row, col: to.col, piece };
+                    this.showPromotionModal();
+                    return; // Don't continue with turn logic until promotion is chosen
+                } else {
+                    // AI promotion - auto-promote to queen
+                    piece.type = 'queen';
+                    this.addLogEntry(`Black pawn promoted to queen at ${this.getSquareName(to.row, to.col)}`, true);
+                }
+            }
+        }
         
         // Update game state
         this.lastMove = { from, to };
         this.selectedSquare = null;
         this.validMoves = [];
-        this.currentTurn = this.currentTurn === 'white' ? 'black' : 'white';
         
-        // Check for check/checkmate
-        this.isCheck = this.isInCheck(this.currentTurn);
-        if (this.isCheck) {
-            if (this.isInCheckmate(this.currentTurn)) {
-                this.isCheckmate = true;
-            }
-        } else if (this.isInStalemate(this.currentTurn)) {
-            this.isStalemate = true;
-        }
-        
-        this.renderBoard();
-        
-        // Computer move
-        if (this.currentTurn === 'black' && !this.isCheckmate && !this.isStalemate) {
-            setTimeout(() => this.makeComputerMove(), 500);
+        // If no promotion is pending, continue with normal turn flow
+        if (!this.pendingPromotion) {
+            this.finalizeTurn();
         }
     }
     
     makeComputerMove() {
         const allMoves = [];
-        const armyRows = [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
         
-        // Find the lowest white piece position
-        let lowestWhitePieceRow = -1;
-        for (let row = 79; row >= 0; row--) {
-            for (let col = 0; col < 8; col++) {
-                const piece = this.board[row][col];
-                if (piece && piece.color === 'white') {
-                    lowestWhitePieceRow = Math.max(lowestWhitePieceRow, row);
-                }
-            }
-        }
-        
-        // Collect all possible moves from active armies only
-        for (let row = 0; row < 80; row++) {
+        // Collect all possible moves for black pieces
+        for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 const piece = this.board[row][col];
                 if (piece && piece.color === 'black') {
-                    // Check if this piece's army should be active
-                    let armyIndex = -1;
-                    for (let i = 0; i < armyRows.length; i++) {
-                        if (row === armyRows[i] || row === armyRows[i] + 1) {
-                            armyIndex = i;
-                            break;
-                        }
-                    }
-                    
-                    // Army is active if white pieces are within 4 rows of this army
-                    const armyStartRow = armyIndex >= 0 ? armyRows[armyIndex] : row;
-                    const isArmyActive = (lowestWhitePieceRow + 4) >= armyStartRow;
-                    
-                    if (isArmyActive) {
-                        // Check if this army just became active
-                        if (armyIndex >= 0 && !this.activeArmies.has(armyIndex)) {
-                            this.activeArmies.add(armyIndex);
-                            this.addLogEntry(`Army ${armyIndex + 1} awakens!`, true);
-                        }
-                        
-                        const moves = this.getValidMoves(row, col);
-                        moves.forEach(move => {
-                            allMoves.push({
-                                from: { row, col },
-                                to: move,
-                                score: this.evaluateMove(row, col, move)
-                            });
+                    const moves = this.getValidMoves(row, col);
+                    moves.forEach(move => {
+                        allMoves.push({
+                            from: { row, col },
+                            to: move,
+                            score: this.evaluateMove(row, col, move)
                         });
-                    }
+                    });
                 }
             }
         }
         
         if (allMoves.length === 0) {
-            // No active armies can move, black passes turn
-            this.currentTurn = 'white';
-            this.showPassMessage();
-            this.renderBoard();
+            // No moves available
+            if (this.isInCheck('black')) {
+                // Checkmate - white wins this board
+                this.boardsCleared++;
+                this.advanceToNextBoard();
+            } else {
+                // Stalemate
+                this.currentTurn = 'white';
+                this.renderBoard();
+            }
             return;
         }
         
@@ -529,80 +600,121 @@ class ChessGame {
     }
     
     evaluateMove(fromRow, fromCol, move) {
-        // Determine AI difficulty based on piece's army position
-        const armyRows = [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
-        let armyIndex = -1;
+        // Exponential difficulty scaling - gets much harder quickly
+        const difficultyMultiplier = Math.min(0.3 + (this.boardsCleared * 0.4), 5.0);
+        const isHardMode = this.boardsCleared >= 3;
+        const isExpertMode = this.boardsCleared >= 6;
         
-        // Find which army this piece belongs to
-        for (let i = 0; i < armyRows.length; i++) {
-            if (fromRow === armyRows[i] || fromRow === armyRows[i] + 1) {
-                armyIndex = i;
-                break;
-            }
-        }
-        
-        // Calculate difficulty multiplier (0.2 for first army, up to 2.0 for last army)
-        const difficultyMultiplier = armyIndex >= 0 ? 0.2 + (armyIndex * 0.15) : 1.0;
-        
-        let score = Math.random() * (5 / difficultyMultiplier); // Less randomness for harder armies
+        let score = Math.random() * (8 / difficultyMultiplier); // Much less randomness for harder armies
         
         const piece = this.board[fromRow][fromCol];
         const target = this.board[move.row][move.col];
         
-        // Prioritize captures (scaled by difficulty)
+        const pieceValues = {
+            pawn: 10,
+            knight: 30,
+            bishop: 30,
+            rook: 50,
+            queen: 90,
+            king: 1000
+        };
+        
+        // Prioritize captures with smart piece value assessment
         if (target) {
-            const pieceValues = {
-                pawn: 10,
-                knight: 30,
-                bishop: 30,
-                rook: 50,
-                queen: 90,
-                king: 1000
-            };
-            score += pieceValues[target.type] * difficultyMultiplier;
+            let captureValue = pieceValues[target.type] * difficultyMultiplier;
+            
+            // Advanced capture evaluation for harder boards
+            if (isHardMode) {
+                // Consider if capturing piece will be recaptured
+                if (this.isSquareUnderAttack(move.row, move.col, 'black')) {
+                    const tradeValue = pieceValues[target.type] - pieceValues[piece.type];
+                    if (tradeValue > 0) {
+                        captureValue += tradeValue * 0.8; // Good trade
+                    } else {
+                        captureValue += tradeValue * 1.2; // Bad trade penalty
+                    }
+                }
+            }
+            
+            score += captureValue;
         }
         
-        // Prioritize center control (scaled by difficulty)
-        const centerDistance = Math.abs(3.5 - move.row) + Math.abs(3.5 - move.col);
-        score += (7 - centerDistance) * 2 * difficultyMultiplier;
+        // Positional understanding improves dramatically
+        if (isHardMode) {
+            // Advanced center control
+            const centerDistance = Math.abs(3.5 - move.row) + Math.abs(3.5 - move.col);
+            score += (7 - centerDistance) * 3 * difficultyMultiplier;
+            
+            // Piece coordination
+            score += this.evaluatePieceCoordination(fromRow, fromCol, move) * difficultyMultiplier;
+            
+            // King safety becomes a major priority
+            score += this.evaluateKingSafety(move) * difficultyMultiplier * 2;
+        } else {
+            // Basic center control for early boards
+            const centerDistance = Math.abs(3.5 - move.row) + Math.abs(3.5 - move.col);
+            score += (7 - centerDistance) * 2 * difficultyMultiplier;
+        }
         
-        // Prioritize piece development (scaled by difficulty)
+        // Development bonus decreases as AI gets smarter (focuses more on tactics)
         if (!piece.hasMoved) {
-            score += 15 * difficultyMultiplier;
+            const developmentBonus = Math.max(5, 20 - (this.boardsCleared * 2));
+            score += developmentBonus * difficultyMultiplier;
         }
         
-        // Check if move gives check (scaled by difficulty)
+        // Check-giving moves become much more valued
         const tempBoard = this.cloneBoard();
         tempBoard[move.row][move.col] = tempBoard[fromRow][fromCol];
         tempBoard[fromRow][fromCol] = null;
         if (this.wouldGiveCheck(tempBoard, 'white')) {
-            score += 50 * difficultyMultiplier;
+            const checkBonus = isExpertMode ? 80 : (isHardMode ? 60 : 40);
+            score += checkBonus * difficultyMultiplier;
         }
         
-        // Avoid moves that put piece in danger (better avoidance for harder armies)
+        // Much better danger avoidance
         if (this.isSquareUnderAttack(move.row, move.col, 'black')) {
-            const pieceValues = {
-                pawn: 10,
-                knight: 30,
-                bishop: 30,
-                rook: 50,
-                queen: 90,
-                king: 1000
-            };
-            score -= (pieceValues[piece.type] * difficultyMultiplier) / 2;
-        }
-        
-        // Advanced tactical awareness for higher armies
-        if (difficultyMultiplier > 1.0) {
-            // Look for tactical patterns like forks, pins, skewers
-            if (this.createsTacticalThreat(fromRow, fromCol, move)) {
-                score += 25 * difficultyMultiplier;
+            let dangerPenalty = (pieceValues[piece.type] * difficultyMultiplier) / 2;
+            
+            // Expert mode: only move into danger if there's a very good reason
+            if (isExpertMode && !target) {
+                dangerPenalty *= 2;
             }
             
-            // Better king safety awareness
-            if (piece.type === 'king' && this.exposesKing(fromRow, fromCol, move)) {
-                score -= 30 * difficultyMultiplier;
+            score -= dangerPenalty;
+        }
+        
+        // Advanced tactical patterns
+        if (isHardMode) {
+            // Tactical threats (forks, pins, skewers)
+            if (this.createsTacticalThreat(fromRow, fromCol, move)) {
+                score += 40 * difficultyMultiplier;
             }
+            
+            // Advanced pawn structure
+            if (piece.type === 'pawn') {
+                score += this.evaluatePawnStructure(fromRow, fromCol, move) * difficultyMultiplier;
+            }
+            
+            // Piece activity and mobility
+            score += this.evaluatePieceMobility(move) * difficultyMultiplier;
+        }
+        
+        // Expert mode: Long-term strategic thinking
+        if (isExpertMode) {
+            // Control key squares
+            score += this.evaluateKeySquareControl(move) * difficultyMultiplier;
+            
+            // Endgame awareness
+            const pieceCount = this.countPieces();
+            if (pieceCount.total < 12) {
+                score += this.evaluateEndgamePosition(fromRow, fromCol, move) * difficultyMultiplier;
+            }
+        }
+        
+        // King safety is critical for harder AIs
+        if (piece.type === 'king' && this.exposesKing(fromRow, fromCol, move)) {
+            const kingSafetyPenalty = isExpertMode ? 60 : (isHardMode ? 40 : 20);
+            score -= kingSafetyPenalty * difficultyMultiplier;
         }
         
         return score;
@@ -648,14 +760,172 @@ class ChessGame {
         return this.isPositionUnderAttackOnBoard(move.row, move.col, 'black', tempBoard);
     }
     
+    evaluatePieceCoordination(fromRow, fromCol, move) {
+        // Evaluate how well pieces support each other
+        let coordination = 0;
+        const piece = this.board[fromRow][fromCol];
+        
+        // Count friendly pieces that can defend this square
+        let defenders = 0;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const ally = this.board[row][col];
+                if (ally && ally.color === piece.color && !(row === fromRow && col === fromCol)) {
+                    const moves = this.getValidMovesWithoutCheckFilter(row, col);
+                    if (moves.some(m => m.row === move.row && m.col === move.col)) {
+                        defenders++;
+                    }
+                }
+            }
+        }
+        
+        coordination += defenders * 5;
+        return coordination;
+    }
+    
+    evaluateKingSafety(move) {
+        // Find black king and evaluate safety around the move
+        let kingRow = -1, kingCol = -1;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece && piece.type === 'king' && piece.color === 'black') {
+                    kingRow = row;
+                    kingCol = col;
+                    break;
+                }
+            }
+            if (kingRow !== -1) break;
+        }
+        
+        if (kingRow === -1) return 0;
+        
+        // Prefer moves that keep pieces near the king
+        const distance = Math.abs(move.row - kingRow) + Math.abs(move.col - kingCol);
+        return Math.max(0, 8 - distance);
+    }
+    
+    evaluatePawnStructure(fromRow, fromCol, move) {
+        let structure = 0;
+        
+        // Prefer advancing pawns
+        if (move.row < fromRow) {
+            structure += 10;
+        }
+        
+        // Avoid isolated pawns
+        const hasAdjacentPawn = this.hasAdjacentPawn(move.row, move.col, 'black');
+        if (!hasAdjacentPawn) {
+            structure -= 5;
+        }
+        
+        return structure;
+    }
+    
+    hasAdjacentPawn(row, col, color) {
+        for (let c = col - 1; c <= col + 1; c += 2) {
+            if (c >= 0 && c < 8) {
+                for (let r = 0; r < 8; r++) {
+                    const piece = this.board[r][c];
+                    if (piece && piece.type === 'pawn' && piece.color === color) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+    
+    evaluatePieceMobility(move) {
+        // Prefer moves that increase piece mobility
+        let mobility = 0;
+        
+        // Create temp board with move made
+        const tempBoard = this.cloneBoard();
+        const piece = tempBoard[move.row][move.col];
+        if (piece) {
+            // Count available moves from new position
+            const availableMoves = this.getValidMovesWithoutCheckFilter(move.row, move.col);
+            mobility = availableMoves.length;
+        }
+        
+        return mobility;
+    }
+    
+    evaluateKeySquareControl(move) {
+        // Key squares are center and around enemy king
+        const keySquares = [
+            [3, 3], [3, 4], [4, 3], [4, 4], // Center squares
+        ];
+        
+        // Add squares around white king
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece && piece.type === 'king' && piece.color === 'white') {
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            const r = row + dr, c = col + dc;
+                            if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+                                keySquares.push([r, c]);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+        // Check if move controls any key squares
+        for (const [kr, kc] of keySquares) {
+            if (move.row === kr && move.col === kc) {
+                return 15;
+            }
+        }
+        return 0;
+    }
+    
+    countPieces() {
+        let white = 0, black = 0;
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece) {
+                    if (piece.color === 'white') white++;
+                    else black++;
+                }
+            }
+        }
+        return { white, black, total: white + black };
+    }
+    
+    evaluateEndgamePosition(fromRow, fromCol, move) {
+        // In endgame, centralize king and activate pieces
+        let endgameScore = 0;
+        const piece = this.board[fromRow][fromCol];
+        
+        if (piece.type === 'king') {
+            // Centralize king in endgame
+            const centerDistance = Math.abs(3.5 - move.row) + Math.abs(3.5 - move.col);
+            endgameScore += (7 - centerDistance) * 5;
+        }
+        
+        if (piece.type === 'rook' || piece.type === 'queen') {
+            // Activate major pieces
+            endgameScore += 10;
+        }
+        
+        return endgameScore;
+    }
+    
     isInBounds(row, col) {
-        return row >= 0 && row < 80 && col >= 0 && col < 8;
+        return row >= 0 && row < 8 && col >= 0 && col < 8;
     }
     
     isSquareUnderAttack(row, col, byColor) {
         const enemyColor = byColor === 'white' ? 'black' : 'white';
         
-        for (let r = 0; r < 80; r++) {
+        for (let r = 0; r < 8; r++) {
             for (let c = 0; c < 8; c++) {
                 const piece = this.board[r][c];
                 if (piece && piece.color === enemyColor) {
@@ -716,7 +986,7 @@ class ChessGame {
         
         // Find king position
         let kingPos = null;
-        for (let row = 0; row < 80; row++) {
+        for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 const piece = tempBoard[row][col];
                 if (piece && piece.type === 'king' && piece.color === this.currentTurn) {
@@ -734,7 +1004,7 @@ class ChessGame {
     isPositionUnderAttackOnBoard(row, col, byColor, board) {
         const enemyColor = byColor === 'white' ? 'black' : 'white';
         
-        for (let r = 0; r < 80; r++) {
+        for (let r = 0; r < 8; r++) {
             for (let c = 0; c < 8; c++) {
                 const piece = board[r][c];
                 if (piece && piece.color === enemyColor) {
@@ -799,7 +1069,7 @@ class ChessGame {
     
     isInCheck(color) {
         let kingPos = null;
-        for (let row = 0; row < 80; row++) {
+        for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 const piece = this.board[row][col];
                 if (piece && piece.type === 'king' && piece.color === color) {
@@ -817,7 +1087,7 @@ class ChessGame {
         if (!this.isInCheck(color)) return false;
         
         // Check if any move can get out of check
-        for (let row = 0; row < 80; row++) {
+        for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 const piece = this.board[row][col];
                 if (piece && piece.color === color) {
@@ -834,7 +1104,7 @@ class ChessGame {
         if (this.isInCheck(color)) return false;
         
         // Check if any legal move exists
-        for (let row = 0; row < 80; row++) {
+        for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 const piece = this.board[row][col];
                 if (piece && piece.color === color) {
@@ -849,7 +1119,7 @@ class ChessGame {
     
     wouldGiveCheck(board, color) {
         let kingPos = null;
-        for (let row = 0; row < 80; row++) {
+        for (let row = 0; row < 8; row++) {
             for (let col = 0; col < 8; col++) {
                 const piece = board[row][col];
                 if (piece && piece.type === 'king' && piece.color === color) {
@@ -911,8 +1181,97 @@ class ChessGame {
         });
     }
     
-    updateKingsKilled() {
-        document.getElementById('kings-killed').textContent = this.kingsKilled;
+    updateBoardsCleared() {
+        document.getElementById('boards-cleared').textContent = this.boardsCleared;
+    }
+    
+    advanceToNextBoard() {
+        // Show victory message
+        const status = document.getElementById('status');
+        status.textContent = `Board ${this.boardsCleared} cleared! Choose reinforcement...`;
+        status.style.color = '#27ae60';
+        
+        // Show piece selection after a brief delay
+        setTimeout(() => {
+            this.showPieceSelection();
+        }, 1500);
+    }
+    
+    proceedToNextBoard() {
+        // Reset for next board
+        this.currentTurn = 'white';
+        this.selectedSquare = null;
+        this.validMoves = [];
+        this.lastMove = null;
+        this.isCheck = false;
+        this.isCheckmate = false;
+        this.isStalemate = false;
+        
+        // Set up new board with surviving white pieces
+        this.setupBoard();
+        this.renderBoard();
+        this.addLogEntry(`=== Board ${this.boardsCleared + 1} ===`, true);
+    }
+    
+    endGame() {
+        this.isGameOver = true;
+        const status = document.getElementById('status');
+        status.textContent = `Game Over! You cleared ${this.boardsCleared} board${this.boardsCleared !== 1 ? 's' : ''}!`;
+        status.style.color = '#e74c3c';
+        this.addLogEntry(`Game Over - ${this.boardsCleared} boards cleared`, true);
+    }
+    
+    debugCaptureBlackKing() {
+        if (this.isGameOver) return;
+        
+        // Find and capture the black king
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece && piece.color === 'black' && piece.type === 'king') {
+                    this.capturedPieces.black.push(piece);
+                    this.board[row][col] = null;
+                    this.addLogEntry(`DEBUG: Black king captured - advancing to next board`, true);
+                    this.boardsCleared++;
+                    this.advanceToNextBoard();
+                    return;
+                }
+            }
+        }
+    }
+    
+    debugKillAllWhitePieces() {
+        if (this.isGameOver) return;
+        
+        let piecesKilled = 0;
+        
+        // Remove all white pieces from the board
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = this.board[row][col];
+                if (piece && piece.color === 'white') {
+                    this.capturedPieces.white.push(piece);
+                    this.board[row][col] = null;
+                    piecesKilled++;
+                }
+            }
+        }
+        
+        // Clear the white army
+        if (this.whiteArmy) {
+            this.whiteArmy.forEach(piece => {
+                if (!this.capturedPieces.white.includes(piece)) {
+                    this.capturedPieces.white.push(piece);
+                }
+            });
+            this.whiteArmy = [];
+        }
+        
+        if (piecesKilled > 0) {
+            this.addLogEntry(`DEBUG: All ${piecesKilled} white pieces eliminated`, true);
+            this.renderBoard();
+            this.endGame();
+        }
     }
     
     showPassMessage() {
@@ -940,13 +1299,7 @@ class ChessGame {
             const capturedArmyInfo = capturedPiece.color === 'black' ? this.getArmyInfo(to.row) : '';
             moveText += ` captures ${capturedPiece.color === 'white' ? 'White' : capturedArmyInfo} ${capturedName}`;
             
-            // Check if this was a king capture (army elimination)
-            if (capturedPiece.type === 'king' && capturedPiece.color === 'black') {
-                const armyNumber = this.getArmyNumber(to.row);
-                if (armyNumber > 0) {
-                    this.addLogEntry(`Army ${armyNumber} eliminated!`, true);
-                }
-            }
+            // King captures are handled in makeMove
         }
         
         this.addLogEntry(moveText);
@@ -962,18 +1315,11 @@ class ChessGame {
     }
     
     getArmyInfo(row) {
-        const armyNumber = this.getArmyNumber(row);
-        return armyNumber > 0 ? `Army ${armyNumber}` : 'Black';
+        return `Board ${this.boardsCleared + 1} Black`;
     }
     
     getArmyNumber(row) {
-        const armyRows = [6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78];
-        for (let i = 0; i < armyRows.length; i++) {
-            if (row === armyRows[i] || row === armyRows[i] + 1) {
-                return i + 1;
-            }
-        }
-        return 0;
+        return this.boardsCleared + 1;
     }
     
     addLogEntry(text, isEvent = false) {
@@ -1004,18 +1350,191 @@ class ChessGame {
         document.getElementById('log-modal-overlay').style.display = 'none';
     }
     
+    showPromotionModal() {
+        document.getElementById('promotion-modal-overlay').style.display = 'block';
+    }
+    
+    hidePromotionModal() {
+        document.getElementById('promotion-modal-overlay').style.display = 'none';
+    }
+    
+    showPieceSelection() {
+        const pieces = this.generateRandomPieces();
+        this.populatePieceSelectionModal(pieces);
+        document.getElementById('piece-selection-modal-overlay').style.display = 'block';
+    }
+    
+    hidePieceSelection() {
+        document.getElementById('piece-selection-modal-overlay').style.display = 'none';
+    }
+    
+    generateRandomPieces() {
+        const pieces = [];
+        const usedTypes = new Set();
+        
+        // Weighted piece pool with rarities
+        const piecePool = [
+            // Common (30%) - Pawn
+            { type: 'pawn', rarity: 'common', weight: 30 },
+            // Common (20% each) - Rook, Knight, Bishop  
+            { type: 'rook', rarity: 'common', weight: 20 },
+            { type: 'knight', rarity: 'common', weight: 20 },
+            { type: 'bishop', rarity: 'common', weight: 20 },
+            // Rare (8%) - Queen
+            { type: 'queen', rarity: 'rare', weight: 8 },
+            // Legendary (2%) - King
+            { type: 'king', rarity: 'legendary', weight: 2 }
+        ];
+        
+        // Generate 3 unique pieces
+        while (pieces.length < 3) {
+            const selectedPiece = this.getWeightedRandomPiece(piecePool);
+            
+            // Only add if we haven't used this type yet
+            if (!usedTypes.has(selectedPiece.type)) {
+                pieces.push({
+                    type: selectedPiece.type,
+                    rarity: selectedPiece.rarity,
+                    symbol: this.pieces.white[selectedPiece.type],
+                    id: `reward-${selectedPiece.type}-${Date.now()}-${Math.random()}`
+                });
+                usedTypes.add(selectedPiece.type);
+            }
+        }
+        
+        return pieces;
+    }
+    
+    getWeightedRandomPiece(piecePool) {
+        const totalWeight = piecePool.reduce((sum, piece) => sum + piece.weight, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (const piece of piecePool) {
+            random -= piece.weight;
+            if (random <= 0) {
+                return piece;
+            }
+        }
+        
+        // Fallback (shouldn't happen)
+        return piecePool[0];
+    }
+    
+    populatePieceSelectionModal(pieces) {
+        const choicesContainer = document.getElementById('piece-selection-choices');
+        choicesContainer.innerHTML = '';
+        
+        pieces.forEach((piece, index) => {
+            const pieceContainer = document.createElement('div');
+            pieceContainer.className = 'piece-container';
+            
+            const button = document.createElement('button');
+            button.className = `piece-selection-choice rarity-${piece.rarity}`;
+            button.dataset.pieceType = piece.type;
+            button.dataset.pieceId = piece.id;
+            button.innerHTML = `
+                <div style="font-size: 50px;">${piece.symbol}</div>
+                <div class="piece-label">${piece.type}</div>
+            `;
+            
+            const rarityLabel = document.createElement('div');
+            rarityLabel.className = `rarity-label rarity-${piece.rarity}`;
+            rarityLabel.textContent = piece.rarity;
+            
+            button.addEventListener('click', () => {
+                this.selectPiece(piece);
+            });
+            
+            pieceContainer.appendChild(button);
+            pieceContainer.appendChild(rarityLabel);
+            choicesContainer.appendChild(pieceContainer);
+        });
+    }
+    
+    selectPiece(piece) {
+        // Add the selected piece to the white army
+        const newPiece = {
+            type: piece.type,
+            color: 'white',
+            hasMoved: false,
+            id: piece.id
+        };
+        
+        this.whiteArmy.push(newPiece);
+        this.addLogEntry(`Added ${piece.type} to your army!`, true);
+        this.hidePieceSelection();
+        
+        // Proceed to next board
+        this.proceedToNextBoard();
+    }
+    
+    completePawnPromotion(pieceType) {
+        if (!this.pendingPromotion) return;
+        
+        const { row, col, piece } = this.pendingPromotion;
+        piece.type = pieceType;
+        
+        // Update the piece in the white army if it exists there
+        if (this.whiteArmy) {
+            const armyPiece = this.whiteArmy.find(p => p.id === piece.id);
+            if (armyPiece) {
+                armyPiece.type = pieceType;
+            }
+        }
+        
+        this.addLogEntry(`White pawn promoted to ${pieceType} at ${this.getSquareName(row, col)}`, true);
+        this.hidePromotionModal();
+        this.pendingPromotion = null;
+        
+        // Continue with normal game flow
+        this.finalizeTurn();
+    }
+    
+    finalizeTurn() {
+        // Update game state
+        this.currentTurn = this.currentTurn === 'white' ? 'black' : 'white';
+        
+        // Check for check/checkmate
+        this.isCheck = this.isInCheck(this.currentTurn);
+        if (this.isCheck) {
+            if (this.isInCheckmate(this.currentTurn)) {
+                this.isCheckmate = true;
+            }
+        } else if (this.isInStalemate(this.currentTurn)) {
+            this.isStalemate = true;
+        }
+        
+        this.renderBoard();
+        
+        // Check if white has no pieces left
+        if (this.whiteArmy.length === 0) {
+            this.endGame();
+            return;
+        }
+        
+        // Computer move
+        if (this.currentTurn === 'black' && !this.isCheckmate && !this.isStalemate && !this.isGameOver) {
+            setTimeout(() => this.makeComputerMove(), 500);
+        }
+    }
+    
     resetGame() {
         this.currentTurn = 'white';
         this.selectedSquare = null;
         this.validMoves = [];
         this.lastMove = null;
         this.capturedPieces = { white: [], black: [] };
-        this.kingsKilled = 0;
+        this.boardsCleared = 0;
         this.isCheck = false;
         this.isCheckmate = false;
         this.isStalemate = false;
         this.moveLog = [];
-        this.activeArmies = new Set();
+        this.whiteArmy = null;
+        this.isGameOver = false;
+        this.pendingPromotion = null;
+        this.pendingPieceSelection = null;
+        this.hidePromotionModal();
+        this.hidePieceSelection();
         
         this.setupBoard();
         this.renderBoard();
