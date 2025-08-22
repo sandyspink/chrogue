@@ -1458,13 +1458,16 @@ class ChessGame {
             const pieceContainer = document.createElement('div');
             pieceContainer.className = 'piece-container';
             
+            const pieceNameLabel = document.createElement('div');
+            pieceNameLabel.className = 'piece-name-label';
+            pieceNameLabel.textContent = piece.type.charAt(0).toUpperCase() + piece.type.slice(1);
+            
             const button = document.createElement('button');
             button.className = `piece-selection-choice rarity-${piece.rarity}`;
             button.dataset.pieceType = piece.type;
             button.dataset.pieceId = piece.id;
             button.innerHTML = `
                 <div style="font-size: 50px;">${piece.symbol}</div>
-                <div class="piece-label">${piece.type}</div>
             `;
             
             const rarityLabel = document.createElement('div');
@@ -1475,6 +1478,7 @@ class ChessGame {
                 this.selectPiece(piece);
             });
             
+            pieceContainer.appendChild(pieceNameLabel);
             pieceContainer.appendChild(button);
             pieceContainer.appendChild(rarityLabel);
             choicesContainer.appendChild(pieceContainer);
